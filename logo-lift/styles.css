@@ -192,6 +192,45 @@ body {
   cursor: progress;
 }
 
+/* Drop / paste zone */
+.ll-drop {
+  margin-top: 12px;
+  padding: 16px 12px;
+  border: 1.5px dashed var(--ll-border);
+  border-radius: 8px;
+  background: var(--ll-bg-soft);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  color: var(--ll-muted);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.ll-drop:hover,
+.ll-drop:focus-visible {
+  border-color: var(--ll-accent);
+  color: var(--ll-text);
+  outline: none;
+}
+
+.ll-drop.ll-dragover {
+  border-color: var(--ll-accent);
+  background: #eef0fe;
+  color: var(--ll-accent);
+}
+
+.ll-drop-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.ll-drop-text {
+  font-size: 12px;
+}
+
 /* Footer */
 .ll-footer {
   border-top: 1px solid var(--ll-border);

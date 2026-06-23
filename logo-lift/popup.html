@@ -19,6 +19,12 @@
     <main id="ll-content" class="ll-content">
       <div id="ll-status" class="ll-status">Scanning page for logos…</div>
       <div id="ll-results" class="ll-results"></div>
+      <div id="ll-drop" class="ll-drop" tabindex="0" role="button"
+           aria-label="Drop, paste, or click to add an image">
+        <span class="ll-drop-icon" aria-hidden="true">⬇</span>
+        <span class="ll-drop-text">Drop an image, paste (⌘/Ctrl&nbsp;+&nbsp;V), or click to browse</span>
+      </div>
+      <input id="ll-file" type="file" accept="image/*" hidden />
     </main>
 
     <footer class="ll-footer">Built by Sadhvika Challa</footer>

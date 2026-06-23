@@ -74,8 +74,8 @@
     }
   }
 
-  // Render an SVG string to a PNG data URL at the target width.
-  async function svgToPngDataUrl(svg, hintW, hintH) {
+  // Render an SVG string to a PNG canvas at the target width.
+  async function svgToPngCanvas(svg, hintW, hintH) {
     const img = await loadImage(svgDataUrl(svg), false);
     let w = hintW || img.naturalWidth || 0;
     let h = hintH || img.naturalHeight || 0;
@@ -91,7 +91,47 @@
     canvas.height = outH;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(img, 0, 0, outW, outH);
-    return canvas.toDataURL('image/png');
+    return canvas;
+  }
+
+  async function svgToPngDataUrl(svg, hintW, hintH) {
+    return (await svgToPngCanvas(svg, hintW, hintH)).toDataURL('image/png');
+  }
+
+  // Promise wrapper around canvas.toBlob.
+  function canvasToBlob(canvas, type) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error('toBlob failed'))),
+        type || 'image/png'
+      );
+    });
+  }
+
+  // Copy a PNG image to the system clipboard.
+  async function copyPngBlob(blob) {
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      throw new Error('Clipboard image write unsupported');
+    }
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+  }
+
+  // Draw a (canvas-safe) image to a full-resolution PNG canvas.
+  function imageToCanvas(img) {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth || 1;
+    canvas.height = img.naturalHeight || 1;
+    canvas.getContext('2d').drawImage(img, 0, 0);
+    return canvas;
+  }
+
+  // Flash a transient confirmation label on a button.
+  function flashLabel(btn, text, ms) {
+    const original = btn.dataset.label || btn.textContent;
+    btn.textContent = text;
+    setTimeout(() => {
+      btn.textContent = original;
+    }, ms || 1200);
   }
 
   // Trace a (canvas-safe) raster image to an SVG string with imagetracerjs.
@@ -224,6 +264,18 @@
       })
     );
     actions.appendChild(png);
+
+    const copy = makeButton('Copy PNG');
+    copy.dataset.label = 'Copy PNG';
+    copy.addEventListener(
+      'click',
+      withBusy(copy, 'Copying…', async () => {
+        const canvas = await svgToPngCanvas(logo.svg, logo.width, logo.height);
+        await copyPngBlob(await canvasToBlob(canvas));
+        flashLabel(copy, 'Copied ✓');
+      })
+    );
+    actions.appendChild(copy);
   }
 
   // Derive a sane file extension for a direct download of the original asset.
@@ -255,14 +307,21 @@
     );
     actions.appendChild(dl);
 
+    const copy = makeButton('Copy PNG', { disabled: true, title: 'Checking…' });
+    copy.dataset.label = 'Copy PNG';
+    actions.appendChild(copy);
+
     const trace = makeButton('Trace to SVG', { disabled: true, title: 'Checking…' });
     actions.appendChild(trace);
 
-    // Probe CORS up front to decide whether tracing is possible.
+    // Probe CORS up front to decide whether tracing / copying is possible
+    // (both need pixel access, which cross-origin images deny).
     probeCanvasSafe(logo.src).then((probe) => {
       if (!probe.ok) {
         trace.disabled = true;
         trace.title = CORS_TOOLTIP;
+        copy.disabled = true;
+        copy.title = CORS_TOOLTIP;
         return;
       }
       trace.disabled = false;
@@ -274,6 +333,17 @@
           const img = probe.img || (await loadImage(logo.src, true));
           const svg = traceImageToSvg(img);
           downloadText(svg, 'image/svg+xml', 'svg');
+        })
+      );
+
+      copy.disabled = false;
+      copy.title = 'Copy this logo as a PNG image';
+      copy.addEventListener(
+        'click',
+        withBusy(copy, 'Copying…', async () => {
+          const img = probe.img || (await loadImage(logo.src, true));
+          await copyPngBlob(await canvasToBlob(imageToCanvas(img)));
+          flashLabel(copy, 'Copied ✓');
         })
       );
     });
@@ -301,6 +371,102 @@
       logos.forEach((logo) => resultsEl.appendChild(buildCard(logo)));
     }
   }
+
+  // --- drop / paste / browse ------------------------------------------------
+
+  // Add a card for an image the user supplied (dropped, pasted, or browsed),
+  // newest first. Reuses the same card UI as detected logos.
+  function addExternalCard(logo) {
+    statusEl.hidden = true;
+    resultsEl.insertBefore(buildCard(logo), resultsEl.firstChild);
+  }
+
+  function rasterTypeFromMime(mime) {
+    const sub = (mime || '').split('/')[1] || 'png';
+    return sub.replace('jpeg', 'jpg').replace('svg+xml', 'svg').toUpperCase();
+  }
+
+  async function addImageFile(file, label) {
+    if (!file || !/^image\//i.test(file.type)) return;
+    if (/svg/i.test(file.type)) {
+      const svg = await file.text();
+      addExternalCard({ kind: 'svg', type: 'SVG', location: label, svg, width: 0, height: 0 });
+    } else {
+      const src = URL.createObjectURL(file);
+      addExternalCard({ kind: 'raster', type: rasterTypeFromMime(file.type), location: label, src, width: 0, height: 0 });
+    }
+  }
+
+  function addImageUrl(url, label) {
+    const abs = (url || '').trim();
+    if (!abs || !/^(https?:|data:image\/|blob:)/i.test(abs)) return;
+    const isSvg = /^data:image\/svg\+xml/i.test(abs) || /\.svg(\?|#|$)/i.test(abs);
+    addExternalCard({ kind: 'raster', type: isSvg ? 'SVG' : 'IMG', location: label, src: abs, width: 0, height: 0 });
+  }
+
+  const dropEl = document.getElementById('ll-drop');
+  const fileEl = document.getElementById('ll-file');
+
+  ['dragenter', 'dragover'].forEach((ev) =>
+    dropEl.addEventListener(ev, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropEl.classList.add('ll-dragover');
+    })
+  );
+  ['dragleave', 'dragend'].forEach((ev) =>
+    dropEl.addEventListener(ev, () => dropEl.classList.remove('ll-dragover'))
+  );
+  dropEl.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropEl.classList.remove('ll-dragover');
+    const dt = e.dataTransfer;
+    if (!dt) return;
+    if (dt.files && dt.files.length) {
+      Array.from(dt.files).forEach((f) => addImageFile(f, 'Dropped image'));
+    } else {
+      addImageUrl(dt.getData('text/uri-list') || dt.getData('text/plain'), 'Dropped image');
+    }
+  });
+
+  // Click the zone to browse for a file.
+  dropEl.addEventListener('click', () => fileEl.click());
+  dropEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      fileEl.click();
+    }
+  });
+  fileEl.addEventListener('change', () => {
+    Array.from(fileEl.files || []).forEach((f) => addImageFile(f, 'Selected image'));
+    fileEl.value = '';
+  });
+
+  // Paste an image (or image URL) anywhere in the popup.
+  window.addEventListener('paste', (e) => {
+    const data = e.clipboardData;
+    if (!data) return;
+    for (const item of data.items || []) {
+      if (item.type && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          addImageFile(file, 'Pasted image');
+          return;
+        }
+      }
+    }
+    const text = data.getData('text');
+    if (text) addImageUrl(text, 'Pasted image');
+  });
+
+  // Prevent the popup from navigating if an image is dropped outside the zone.
+  ['dragover', 'drop'].forEach((ev) =>
+    window.addEventListener(ev, (e) => {
+      if (!dropEl.contains(e.target)) e.preventDefault();
+    })
+  );
 
   // Backup channel: content.js also sends results via runtime messaging.
   chrome.runtime.onMessage.addListener((msg) => {

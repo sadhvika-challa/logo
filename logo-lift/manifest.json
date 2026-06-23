@@ -3,7 +3,7 @@
   "name": "Logo Lift",
   "version": "1.0.0",
   "description": "Detect and download logo & brand assets from any webpage.",
-  "permissions": ["activeTab", "scripting", "downloads"],
+  "permissions": ["activeTab", "scripting", "downloads", "clipboardWrite"],
   "action": {
     "default_title": "Logo Lift",
     "default_popup": "popup.html",
