@@ -192,42 +192,6 @@ body {
   cursor: progress;
 }
 
-/* Brand guidelines */
-.ll-brand {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--ll-border);
-}
-
-.ll-section-title {
-  margin: 0 0 8px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ll-muted);
-}
-
-.ll-brand-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.ll-brand-list a {
-  color: var(--ll-accent);
-  text-decoration: none;
-  font-size: 12px;
-  word-break: break-word;
-}
-
-.ll-brand-list a:hover {
-  text-decoration: underline;
-}
-
 /* Footer */
 .ll-footer {
   border-top: 1px solid var(--ll-border);

@@ -158,7 +158,7 @@
     if (seen.has(key)) return;
     seen.add(key);
     const ext = extFromUrl(abs);
-    const kind = location === 'Favicon' || location === 'Apple Touch Icon' ? 'favicon' : 'raster';
+    const kind = 'raster';
     candidates.push({
       id: nextId++,
       kind,
@@ -285,31 +285,7 @@
     if (img) addImg(img, zoneLabel(a) + ' Link Image');
   });
 
-  // 4) Favicons.
-  document.querySelectorAll('link[rel]').forEach((link) => {
-    const rel = lc(link.getAttribute('rel'));
-    const href = link.getAttribute('href');
-    if (!href) return;
-    if (rel.includes('apple-touch-icon')) {
-      addRaster(href, 'Apple Touch Icon');
-    } else if (rel.split(/\s+/).includes('icon') || rel.includes('shortcut icon')) {
-      addRaster(href, 'Favicon');
-    }
-  });
-  // Fall back to the default /favicon.ico if no <link> icon was declared.
-  if (!candidates.some((c) => c.kind === 'favicon')) {
-    addRaster('/favicon.ico', 'Favicon', 'ICO');
-  }
-
-  // 5) <meta property="og:image">.
-  document
-    .querySelectorAll('meta[property="og:image"], meta[name="og:image"], meta[property="og:image:url"]')
-    .forEach((meta) => {
-      const content = meta.getAttribute('content');
-      if (content) addRaster(content, 'Meta OG Image');
-    });
-
-  // 6) Inline SVG with aria-label mentioning "logo" or "brand" (anywhere).
+  // 4) Inline SVG with aria-label mentioning "logo" or "brand" (anywhere).
   document.querySelectorAll('svg[aria-label]').forEach((svg) => {
     const label = lc(svg.getAttribute('aria-label'));
     if (label.includes('logo') || label.includes('brand')) {
@@ -317,7 +293,7 @@
     }
   });
 
-  // 7) CSS background-image logos in header/nav elements.
+  // 5) CSS background-image logos in header/nav elements.
   document.querySelectorAll('header, header *, nav, nav *, [role="banner"], [role="banner"] *').forEach((el) => {
     try {
       const bg = getComputedStyle(el).backgroundImage;
@@ -331,23 +307,6 @@
     } catch { /* ignore */ }
   });
 
-  // --- brand guideline links ------------------------------------------------
-
-  const BRAND_TERMS = ['brand', 'guidelines', 'press kit', 'media kit', 'assets'];
-  const brandLinks = [];
-  const seenBrand = new Set();
-  document.querySelectorAll('a[href]').forEach((a) => {
-    const href = a.getAttribute('href') || '';
-    const text = a.textContent || '';
-    const hay = lc(href + ' ' + text);
-    if (!BRAND_TERMS.some((t) => hay.includes(t))) return;
-    const abs = absUrl(href);
-    if (!abs || abs.startsWith('javascript:') || seenBrand.has(abs)) return;
-    seenBrand.add(abs);
-    const label = (text.trim() || abs).replace(/\s+/g, ' ').slice(0, 80);
-    brandLinks.push({ label, href: abs });
-  });
-
   // --- send results back to the popup --------------------------------------
 
   const payload = {
@@ -355,7 +314,6 @@
     domain: domainFromHost(),
     pageUrl: location.href,
     logos: candidates,
-    brandLinks: brandLinks.slice(0, 25),
   };
 
   try {

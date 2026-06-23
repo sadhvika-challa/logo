@@ -13,8 +13,6 @@
 
   const statusEl = document.getElementById('ll-status');
   const resultsEl = document.getElementById('ll-results');
-  const brandEl = document.getElementById('ll-brand');
-  const brandListEl = document.getElementById('ll-brand-list');
 
   let rendered = false;
   let domain = 'page';
@@ -281,21 +279,6 @@
     });
   }
 
-  function buildBrandLinks(links) {
-    if (!links || !links.length) return;
-    links.forEach((link) => {
-      const li = document.createElement('li');
-      const a = document.createElement('a');
-      a.href = link.href;
-      a.textContent = link.label;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      li.appendChild(a);
-      brandListEl.appendChild(li);
-    });
-    brandEl.hidden = false;
-  }
-
   // --- results handling -----------------------------------------------------
 
   function showEmpty(message) {
@@ -310,7 +293,6 @@
 
     domain = (payload && payload.domain) || 'page';
     const logos = (payload && payload.logos) || [];
-    const brandLinks = (payload && payload.brandLinks) || [];
 
     if (!logos.length) {
       showEmpty('No logos detected on this page.');
@@ -318,8 +300,6 @@
       statusEl.hidden = true;
       logos.forEach((logo) => resultsEl.appendChild(buildCard(logo)));
     }
-
-    buildBrandLinks(brandLinks);
   }
 
   // Backup channel: content.js also sends results via runtime messaging.
