@@ -194,31 +194,93 @@
     });
   }
 
+  // --- SVG size filtering ----------------------------------------------------
+
+  const ICON_MAX = 32; // viewBox or rendered size at or below this = UI icon
+
+  function isSvgIconSized(svgEl) {
+    const vb = svgEl.getAttribute('viewBox');
+    if (vb) {
+      const p = vb.trim().split(/[\s,]+/).map(Number);
+      if (p.length === 4 && p[2] > 0 && p[3] > 0) {
+        if (p[2] <= ICON_MAX && p[3] <= ICON_MAX) return true;
+      }
+    }
+    try {
+      const r = svgEl.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && r.width <= ICON_MAX && r.height <= ICON_MAX) return true;
+    } catch { /* ignore */ }
+    return false;
+  }
+
+  function svgHasTextOrComplexContent(svgEl) {
+    if (svgEl.querySelector('text, tspan')) return true;
+    const paths = svgEl.querySelectorAll('path');
+    if (paths.length >= 4) return true;
+    return false;
+  }
+
+  function shouldSkipIconSvg(svgEl) {
+    if (!isSvgIconSized(svgEl)) return false;
+    if (svgHasTextOrComplexContent(svgEl)) return false;
+    return true;
+  }
+
+  // --- homepage-link detection -----------------------------------------------
+
+  function isHomepageLink(a) {
+    const href = a.getAttribute('href') || '';
+    if (href === '/' || href === '#' || href === '') return true;
+    try {
+      const url = new URL(href, location.href);
+      if (url.origin === location.origin && (url.pathname === '/' || url.pathname === '')) return true;
+    } catch { /* ignore */ }
+    return false;
+  }
+
+  // --- extended keyword matching for images ----------------------------------
+
+  const LOGO_KEYWORDS = ['logo', 'brand', 'wordmark', 'logotype', 'site-mark', 'site-logo', 'navbar-brand'];
+
+  function hasLogoKeyword(str) {
+    const s = lc(str);
+    return LOGO_KEYWORDS.some((kw) => s.includes(kw));
+  }
+
   // --- signal scanning (priority order) ------------------------------------
 
-  // 1) <svg> in header/nav/top-of-page.
+  // 0) Homepage-link logos (highest priority — the site logo is almost always
+  //    an <a href="/"> in the header/nav wrapping an <img> or <svg>).
+  document.querySelectorAll('header a, nav a, [role="banner"] a').forEach((a) => {
+    if (!isHomepageLink(a)) return;
+    const svg = a.querySelector('svg');
+    if (svg) addSvg(svg, 'Site Logo');
+    a.querySelectorAll('img').forEach((img) => addImg(img, 'Site Logo'));
+  });
+
+  // 1) <svg> in header/nav/top-of-page — but skip icon-sized SVGs.
   document.querySelectorAll('svg').forEach((svg) => {
-    if (svg.closest('header a, nav a')) return; // handled by signal 3
+    if (svg.closest('header a, nav a, [role="banner"] a')) return; // handled by signal 0
+    if (shouldSkipIconSvg(svg)) return;
     if (isInTopZone(svg)) addSvg(svg, zoneLabel(svg) + ' SVG');
   });
 
-  // 2) <img> whose src/alt/class/id mentions "logo".
+  // 2) <img> whose src/alt/class/id mentions logo keywords.
   document.querySelectorAll('img').forEach((img) => {
     const hay = [
       img.getAttribute('src'),
       img.getAttribute('alt'),
       img.className,
       img.id,
-    ]
-      .map(lc)
-      .join(' ');
-    if (hay.includes('logo')) addImg(img, 'Logo Image');
+    ].join(' ');
+    if (hasLogoKeyword(hay)) addImg(img, 'Logo Image');
   });
 
-  // 3) <a> wrapping an svg/img in the header/nav area.
-  document.querySelectorAll('header a, nav a').forEach((a) => {
+  // 3) <a> wrapping an svg/img in the header/nav area (non-homepage links).
+  document.querySelectorAll('header a, nav a, [role="banner"] a').forEach((a) => {
+    if (isHomepageLink(a)) return; // already handled by signal 0
     const svg = a.querySelector('svg');
-    if (svg) addSvg(svg, zoneLabel(a) + ' Link SVG');
+    if (svg && !shouldSkipIconSvg(svg)) addSvg(svg, zoneLabel(a) + ' Link SVG');
     const img = a.querySelector('img');
     if (img) addImg(img, zoneLabel(a) + ' Link Image');
   });
@@ -253,6 +315,20 @@
     if (label.includes('logo') || label.includes('brand')) {
       addSvg(svg, 'ARIA Logo SVG');
     }
+  });
+
+  // 7) CSS background-image logos in header/nav elements.
+  document.querySelectorAll('header, header *, nav, nav *, [role="banner"], [role="banner"] *').forEach((el) => {
+    try {
+      const bg = getComputedStyle(el).backgroundImage;
+      if (!bg || bg === 'none') return;
+      const m = bg.match(/url\(["']?(.*?)["']?\)/);
+      if (!m || !m[1]) return;
+      const url = m[1];
+      if (/logo|brand|wordmark/i.test(url) || /logo|brand|wordmark/i.test(el.className + ' ' + el.id)) {
+        addRaster(url, 'CSS Background Logo');
+      }
+    } catch { /* ignore */ }
   });
 
   // --- brand guideline links ------------------------------------------------
